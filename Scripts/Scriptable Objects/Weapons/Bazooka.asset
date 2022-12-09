@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b71e89edd31b65242bcbc29508fbe4af, type: 3}
+  m_Name: Bazooka
+  m_EditorClassIdentifier: 
+  weaponName: Bazooka
+  shootingMode: 0
+  damage: 10
+  bulletSpeed: 100
+  bulletFrequency: 1
+  fireRate: 1
+  reloadTime: 1
+  magazineSize: 1
+  currentAmmo: 1
+  shooting: 0
