@@ -4,113 +4,76 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using Cinemachine;
-using Unity.Android.Types;
+using UnityEngine.TextCore.Text;
 
 public class GameManager : MonoBehaviour
 {
     [SerializeField] public TextMeshProUGUI movesText;
-    [SerializeField] public TextMeshProUGUI outOfMovesText;
+    [SerializeField] public TextMeshProUGUI announcerText;
     [SerializeField] public TextMeshProUGUI currentWeaponText;
     [SerializeField] public TextMeshProUGUI ammoInClipText;
-    [SerializeField] private GameObject compass;
-    [SerializeField] private Player player;
-    [SerializeField] private Weapon playerWeapon;
+
+    [SerializeField] public Player activeCharacter;
+    [SerializeField] public Weapon activeCharacterWeapon;
     [SerializeField] private Camera mainCamera;
-    [SerializeField] private CinemachineVirtualCamera virtualCamera1;
-    [SerializeField] private CinemachineVirtualCamera virtualCamera2;
-    [SerializeField] private CinemachineVirtualCamera virtualCamera3;
-    [SerializeField] private CinemachineVirtualCamera virtualCamera4;
+
+    private UnitSelector unitSelector;
+
+    private Color oldColor = new (0, 0, 0, 1),
+                  newColor = new (0, 0, 0, 0); 
+
     public Button nextTurnButton;
     public Button changeWeapon;
 
-    private int cameraIndex = 0;
+    public int spawnedCharacterIndex = 0;
+    [HideInInspector] public bool enemyTurn = false;
 
-
-    private void Awake()
+    public void Awake()
     {
-        player = GameObject.FindWithTag("Player").GetComponent<Player>();
-        playerWeapon = player.GetComponent<Weapon>();
-        mainCamera = GameObject.FindWithTag("MainCamera").GetComponent<Camera>();
+        
+        unitSelector = this.GetComponent<UnitSelector>();   
     }
 
-    private void Update()
+    public void EnableAnnouncerText()                  // When player is out of moves, this UI-text appears
     {
-        CheckCameraRotation();
-    }
-    public void EnableOutOfMovesText()                  // When player is out of moves, this UI-text appears
-    {
-        outOfMovesText.text = "You are out of moves!";
-        outOfMovesText.gameObject.SetActive(true);
+        StartCoroutine(AnnouncerTimer(1.5f));
     }
 
-    public void ButtonNextTurn()                        // Resets player moves and starts new turn
+    public void ButtonNextTurn()                        // Resets player/enemy moves and starts new turn
     {
-        player.movesLeft = 10f;
-        movesText.text = "Moves left: " + player.movesLeft;
-        outOfMovesText.gameObject.SetActive(false);
+        if (!enemyTurn)
+        {
+            foreach (Player p in unitSelector.selectedCharacterList)
+                p.movesLeft = p.maxMoves;
+        }
+        else
+            foreach (Enemy e in unitSelector.enemyList)
+                e.movesLeft = e.maxMoves;
+
+        movesText.text = "Moves left: " + activeCharacter.movesLeft;
     }
     public void ButtonChangeWeapon()                    // Changes weapon to next
     {
-        playerWeapon.ChangeWeapon();
+        activeCharacterWeapon.ChangeWeapon();
     }
-
     public void ChangeWeaponUIText()                    // Changes UItext regarding the weapon in use
     {
-        currentWeaponText.text = "Weapon in use: " + playerWeapon.currentWeapon.weaponName;
-        ammoInClipText.text = "Ammo in Clip " + playerWeapon.currentWeapon.currentAmmo;
+        currentWeaponText.text = "Weapon in use: " + activeCharacterWeapon.currentWeapon.weaponName;
+        ammoInClipText.text = "Ammo in Clip " + activeCharacterWeapon.currentWeapon.currentAmmo;
     }
-
-    public void CheckCameraRotation()   // Checks input for Camera rotation and turns compass
+    public IEnumerator AnnouncerTimer(float timer) // Timer for EnableOutOfMovesText()
     {
-        if (Input.GetKeyDown(KeyCode.Q)) 
-        {
-            cameraIndex++;
-            if (cameraIndex > 3)
-                cameraIndex = 0;
-            SetActiveVirtualCamera();
-            compass.transform.Rotate(0, 0, 90);
-        }
-        else if (Input.GetKeyDown(KeyCode.E))
-        {
-            cameraIndex--;
-            if (cameraIndex < 0)
-                cameraIndex = 3;
-            SetActiveVirtualCamera();
-            compass.transform.Rotate(0, 0, -90);
-        }
-    }
+        announcerText.gameObject.SetActive(true);
+        float waitingTime = 0;
 
-    public void SetActiveVirtualCamera() // Sets active VirtualCamera
-    {
-        switch (cameraIndex)
+        while (waitingTime < timer)
         {
-            case 0:
-                virtualCamera1.Priority = 11;
-                virtualCamera2.Priority = 10;
-                virtualCamera3.Priority = 10;
-                virtualCamera4.Priority = 10;
-                break;
-            case 1:
-                virtualCamera1.Priority = 10;
-                virtualCamera2.Priority = 11;
-                virtualCamera3.Priority = 10;
-                virtualCamera4.Priority = 10;
-                break;
-            case 2:
-                virtualCamera1.Priority = 10;
-                virtualCamera2.Priority = 10;
-                virtualCamera3.Priority = 11;
-                virtualCamera4.Priority = 10;
-                break;
-            case 3:
-                virtualCamera1.Priority = 10;
-                virtualCamera2.Priority = 10;
-                virtualCamera3.Priority = 10;
-                virtualCamera4.Priority = 11;
-                break;
-            default:
-                Debug.Log("SetActiveVirtualCamera is bugging");
-                break;
+            waitingTime += Time.deltaTime;
+            announcerText.color = Color.Lerp(oldColor, newColor, waitingTime / timer);
+            yield return null;
         }
-    }
+        announcerText.gameObject.SetActive(false);
+        movesText.color = oldColor;
+        StopCoroutine(AnnouncerTimer(timer));
+    }  
 }

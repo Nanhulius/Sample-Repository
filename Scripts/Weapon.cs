@@ -3,6 +3,8 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using Random = UnityEngine.Random;
+
 
 public class Weapon : MonoBehaviour
 {
@@ -19,15 +21,17 @@ public class Weapon : MonoBehaviour
     [SerializeField] public BulletPooler currentBulletPooler;
     [SerializeField] public GameObject currentBulletPoolerObject;
     [SerializeField] private Transform bulletSpawner;
-    [SerializeField] private GameObject AmmoInUse;
+    [SerializeField] private GameObject ammoInUse;
 
     private Rigidbody rb;
 
     private Vector3 shootingDirection;
+    private Vector3 randomizedAccuracy;
 
     private int weaponIndex;
     private int poolerIndex;
     private int bulletPoolerIndex;
+    public bool aimOn = false;
 
     private void Awake()
     {
@@ -35,20 +39,30 @@ public class Weapon : MonoBehaviour
         gameManager = GameObject.FindWithTag("GameManager").GetComponent<GameManager>();
         currentWeapon = (WeaponDataSO)weaponList[0];
         weaponIndex = weaponList.IndexOf(currentWeapon);
+        SetBulletPoolers();
         currentBulletPoolerObject = bulletPoolerList[weaponIndex];
         gameManager.ChangeWeaponUIText();
         currentBulletPooler = currentBulletPoolerObject.GetComponent<BulletPooler>(); 
-        AmmoInUse = currentBulletPooler.currentBulletPooler.bulletPrefab;
+        ammoInUse = currentBulletPooler.currentBulletPooler.bulletPrefab;
         poolerIndex = bulletPoolerList.IndexOf(currentBulletPoolerObject);
         currentWeapon.shooting = true;
     }
 
     private void Update()
     {
-        DrawShootingLine();
+        if (aimOn)
+            DrawShootingLine();
     }
 
-    public void DrawShootingLine() //Draws line and checks collisions
+    public void SetAimOnOff()
+    {
+        if (!aimOn)
+            aimOn = true;
+        else
+            aimOn = false;
+    }
+
+    private void DrawShootingLine() //Draws line and checks collisions
     {
         Ray ray = player.mainCamera.ScreenPointToRay(Input.mousePosition);
 
@@ -65,7 +79,6 @@ public class Weapon : MonoBehaviour
                 Debug.DrawRay(bulletSpawner.transform.position, shootingDirection, Color.green);
             }
 
-
             if (currentWeapon.shooting == true && !CheckMouseOverUI())
             {
                 //if (currentWeapon.shootingMode.ToString() == "Burst")
@@ -80,10 +93,10 @@ public class Weapon : MonoBehaviour
                     ShootWithCurrentWeapon();
                 }
             }
-
         }
     }
-    public void ShootWithCurrentWeapon() // Checks if current weapoon has ammo in clip and shoots in way defined by weapon
+
+    private void ShootWithCurrentWeapon() // Checks if current weapoon has ammo in clip and shoots in way defined by weapon
     {
         if (currentWeapon.currentAmmo > 0)
         {
@@ -114,17 +127,18 @@ public class Weapon : MonoBehaviour
             StartCoroutine(ReloadWeapon());
     }
 
-
-
-    public IEnumerator Shoot() // Starts coroutine for single fire
+    private IEnumerator Shoot() // Starts coroutine for single fire
     {
+        //RandomizeAccuracy();
+
+
         currentWeapon.shooting = false;
         GameObject bullet = currentBulletPooler.GetBulletFromPool();
         bullet.transform.position = bulletSpawner.transform.position;
         bullet.transform.rotation = Quaternion.identity;
         rb = bullet.GetComponent<Rigidbody>();
-        rb.velocity = shootingDirection.normalized * currentWeapon.bulletSpeed;
-        rb.AddForce(shootingDirection * currentWeapon.bulletSpeed);
+        //rb.velocity = (shootingDirection + randomizedAccuracy).normalized * currentWeapon.bulletSpeed;
+        rb.AddRelativeForce(shootingDirection * currentWeapon.bulletSpeed);
         currentWeapon.currentAmmo--;
         gameManager.ammoInClipText.text = "Ammo in Clip " + currentWeapon.currentAmmo;
         if (currentWeapon.currentAmmo > 0 )
@@ -134,7 +148,7 @@ public class Weapon : MonoBehaviour
         currentWeapon.shooting = true;
     }
 
-    public IEnumerator BurstFire()  // Starts coroutine for burstfire
+    private IEnumerator BurstFire()  // Starts coroutine for burstfire
     {
         currentWeapon.shooting = false;
         ShootBurst();
@@ -147,14 +161,15 @@ public class Weapon : MonoBehaviour
         currentWeapon.shooting = true;
     } 
 
-    public void ShootBurst() // Shoots a bullet during burstfire
+    private void ShootBurst() // Shoots a bullet during burstfire
     {
+        //RandomizeAccuracy();
         GameObject bullet = currentBulletPooler.GetBulletFromPool();
         bullet.transform.position = bulletSpawner.transform.position;
         bullet.transform.rotation = Quaternion.identity;
         rb = bullet.GetComponent<Rigidbody>();
-        rb.velocity = shootingDirection.normalized * currentWeapon.bulletSpeed;
-        //rb.AddForce(shootingDirection * currentWeapon.bulletSpeed);
+        rb.velocity = (shootingDirection + randomizedAccuracy).normalized * currentWeapon.bulletSpeed;
+        rb.AddForce(shootingDirection * currentWeapon.bulletSpeed);
         currentWeapon.currentAmmo--;
         if (currentWeapon.currentAmmo == 0)
             StartCoroutine(ReloadWeapon());
@@ -183,11 +198,11 @@ public class Weapon : MonoBehaviour
         }
 
         gameManager.ChangeWeaponUIText();
-        AmmoInUse = currentBulletPooler.currentBulletPooler.bulletPrefab;
+        ammoInUse = currentBulletPooler.currentBulletPooler.bulletPrefab;
         currentWeapon.shooting = true;
     }
 
-    public IEnumerator ReloadWeapon()   // Makes weapon unusable for time it needs to reload
+    private IEnumerator ReloadWeapon()   // Makes weapon unusable for time it needs to reload
     {
         Debug.Log("Started to Reload");
         currentWeapon.shooting = false;
@@ -200,5 +215,50 @@ public class Weapon : MonoBehaviour
     private bool CheckMouseOverUI()
     {
         return EventSystem.current.IsPointerOverGameObject();
+    }
+
+    private void SetBulletPoolers()
+    {
+        //Debug.Log("Setting bulletpoolers");
+        switch (gameManager.spawnedCharacterIndex)
+        {
+            case 0:
+                bulletPoolerList[0] = GameObject.FindWithTag("PistolBulletPooler");
+                bulletPoolerList[1] = GameObject.FindWithTag("SubmachinegunBulletPooler");
+                bulletPoolerList[2] = GameObject.FindWithTag("AssaultRifleBulletPooler");
+                bulletPoolerList[3] = GameObject.FindWithTag("BazookaMissilePooler");
+                break;
+
+            case 1: 
+                bulletPoolerList[0] = GameObject.FindWithTag("WolfPistolBulletPooler");
+                bulletPoolerList[1] = GameObject.FindWithTag("WolfSubmachinegunBulletPooler");
+                bulletPoolerList[2] = GameObject.FindWithTag("WolfAssaultRifleBulletPooler");
+                bulletPoolerList[3] = GameObject.FindWithTag("WolfBazookaMissilePooler");
+                break;
+
+            default:
+                Debug.Log("Setting bulletPoolers didn't work!");
+                break;
+        }
+        gameManager.spawnedCharacterIndex++;
+    }
+
+    private void RandomizeAccuracy() // Randomizes minVector and maxVector numbers, these are used to randomize vector3 shootingDirection
+    {
+        /* TO DO
+         * Add different minVector/maxVector variables for different weapons and for shooting while moving/jumping
+        */
+
+        var minVector = -20.0f;
+        var maxVector = 20.0f;
+        randomizedAccuracy = new Vector3(Random.Range(minVector, maxVector), Random.Range(minVector, maxVector), Random.Range(minVector, maxVector));
+    }
+
+    public void ToggleBulletSpawner()
+    {
+        if (bulletSpawner.gameObject.activeInHierarchy)
+            bulletSpawner.gameObject.SetActive(false);
+        else
+            bulletSpawner.gameObject.SetActive(true);
     }
 }
