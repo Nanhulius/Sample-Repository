@@ -1,7 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using Unity.VisualScripting;
 using UnityEngine;
 
 public class BulletPooler : MonoBehaviour
@@ -55,11 +54,12 @@ public class BulletPooler : MonoBehaviour
     //    ReturnBulletToPool();
     //}
 
+    
     public void ReturnBulletToPool() // Returns bullet back into pool
     {
         bullet.transform.position = poolerPosition.position;
         bulletPool.Enqueue(bullet);
         bullet.SetActive(false); 
     }
-
+    
 }

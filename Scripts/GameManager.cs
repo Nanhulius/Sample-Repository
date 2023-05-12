@@ -5,6 +5,7 @@ using UnityEngine.UI;
 using TMPro;
 using Cinemachine;
 using UnityEngine.TextCore.Text;
+using UnityEngine.EventSystems;
 
 public class GameManager : MonoBehaviour
 {
@@ -15,7 +16,7 @@ public class GameManager : MonoBehaviour
 
     [SerializeField] public Player activeCharacter;
     [SerializeField] public Weapon activeCharacterWeapon;
-    [SerializeField] private Camera mainCamera;
+    [SerializeField] public Camera mainCamera;
 
     private UnitSelector unitSelector;
 
@@ -30,11 +31,10 @@ public class GameManager : MonoBehaviour
 
     public void Awake()
     {
-        
         unitSelector = this.GetComponent<UnitSelector>();   
     }
 
-    public void EnableAnnouncerText()                  // When player is out of moves, this UI-text appears
+    public void EnableAnnouncerText()                  // When called, shows wanted text on UI
     {
         StartCoroutine(AnnouncerTimer(1.5f));
     }
@@ -52,15 +52,13 @@ public class GameManager : MonoBehaviour
 
         movesText.text = "Moves left: " + activeCharacter.movesLeft;
     }
-    public void ButtonChangeWeapon()                    // Changes weapon to next
-    {
-        activeCharacterWeapon.ChangeWeapon();
-    }
+
     public void ChangeWeaponUIText()                    // Changes UItext regarding the weapon in use
     {
         currentWeaponText.text = "Weapon in use: " + activeCharacterWeapon.currentWeapon.weaponName;
         ammoInClipText.text = "Ammo in Clip " + activeCharacterWeapon.currentWeapon.currentAmmo;
     }
+
     public IEnumerator AnnouncerTimer(float timer) // Timer for EnableOutOfMovesText()
     {
         announcerText.gameObject.SetActive(true);
@@ -75,5 +73,15 @@ public class GameManager : MonoBehaviour
         announcerText.gameObject.SetActive(false);
         movesText.color = oldColor;
         StopCoroutine(AnnouncerTimer(timer));
-    }  
+    }
+
+    public bool CheckMouseOverUI()  // Checks if mouse pointer is on UI-element(button) when clicked
+    {
+        return EventSystem.current.IsPointerOverGameObject();
+    }
+
+    public void UpdateUIText()
+    {
+        movesText.text = "Moves left: " + activeCharacter.movesLeft.ToString("F2");
+    }
 }

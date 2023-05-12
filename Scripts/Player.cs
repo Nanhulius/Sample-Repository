@@ -6,7 +6,7 @@ using UnityEngine.UIElements;
 using Unity.Collections;
 using Cinemachine;
 
-public class Player : MonoBehaviour
+public class Player : MonoBehaviour, IDamageable
 {
     [SerializeField] public Camera mainCamera;
     [SerializeField] public CameraController cameraController;
@@ -14,24 +14,20 @@ public class Player : MonoBehaviour
     private GameManager gameManager;
     private Weapon weapon;
     private UnitSelector unitSelector;
-   
+
+    [SerializeField] private int maxHealth, currentHealth = 1;
     [SerializeField] private float jumpHeight, moveSpeed;
     [SerializeField] public float maxMoves, movesLeft; 
 
     private TextMeshProUGUI movesText;
     private bool moving = false;
     private bool outOfMovesShown = false;
+    private bool damageable = true;
+    public bool characterDown = false;
     private Rigidbody rb;
 
     private void Awake()
     {
-        movesLeft = maxMoves;
-        rb = GetComponent<Rigidbody>();
-        mainCamera = gameObject.GetComponentInChildren<Camera>();
-        cameraController = gameObject.GetComponentInChildren<CameraController>();
-        gameManager = GameObject.FindWithTag("GameManager").GetComponent<GameManager>();
-        weapon = gameObject.GetComponentInChildren<Weapon>();
-        unitSelector = GameObject.FindWithTag("GameManager").GetComponent<UnitSelector>();
         InitializeCharacter();
     }
 
@@ -42,6 +38,27 @@ public class Player : MonoBehaviour
                 MoveCharacter();
             else
                 return;
+    }
+    private void InitializeCharacter() // Sets active character at the start of the game
+    {
+        currentHealth = maxHealth;
+        movesLeft = maxMoves;
+        rb = GetComponent<Rigidbody>();
+        mainCamera = gameObject.GetComponentInChildren<Camera>();
+        cameraController = gameObject.GetComponentInChildren<CameraController>();
+        gameManager = GameObject.FindWithTag("GameManager").GetComponent<GameManager>();
+        weapon = gameObject.GetComponentInChildren<Weapon>();
+        unitSelector = GameObject.FindWithTag("GameManager").GetComponent<UnitSelector>();
+        unitSelector.selectedCharacterList.Add(this);
+        if (gameManager.activeCharacter == null)
+        {
+            gameManager.activeCharacter = this;
+            gameManager.activeCharacterWeapon = gameManager.activeCharacter.GetComponent<Weapon>();
+        }
+        else
+        {
+            cameraController.gameObject.SetActive(false);
+        }
     }
 
     private void MoveCharacter()  // Moves active character, if aiming is on movemenet speed is 1/3 of normal
@@ -58,19 +75,18 @@ public class Player : MonoBehaviour
             if (rb.velocity.magnitude != 0)
             {
                 moving = true;
-                movesLeft -= Time.deltaTime;
-                
+                movesLeft -= Time.deltaTime;                
             }    
             else
                 moving = false;
 
-            if (Input.GetKeyDown(KeyCode.Space))
+            if (Input.GetKeyDown(KeyCode.Space)) // Jumping, currently decreases movesleft with spacebar + moving, maybe change for just moving?
             {
                 rb.AddForce(new Vector3(0, jumpHeight), ForceMode.Impulse);
                 movesLeft--;
                 movesLeft -= Time.deltaTime;
             }
-            UpdateUIText();
+            gameManager.UpdateUIText();
         }
         else
         {
@@ -82,34 +98,27 @@ public class Player : MonoBehaviour
             }
             else                  // If clicking any key while moves are depleted show text
             {
-                if (Input.anyKey)
+                if (Input.anyKey && !gameManager.CheckMouseOverUI())
                     gameManager.EnableAnnouncerText();
             }
         }
-    }
+    } 
 
-    public void UpdateUIText()
+    void IDamageable.TakeDamage(int damage)
     {
-        gameManager.movesText.text = "Moves left: " + movesLeft.ToString("F2");
-    }
-
-    private void InitializeCharacter() // Sets active character at the start of the game
-    {
-        unitSelector.selectedCharacterList.Add(this);
-        if (gameManager.activeCharacter == null)
-        {
-            gameManager.activeCharacter = this;
-            gameManager.activeCharacterWeapon = gameManager.activeCharacter.GetComponent<Weapon>();
-        }
+        if (!damageable)
+            return;
         else
         {
-            cameraController.gameObject.SetActive(false);
+            Debug.Log(this.gameObject.name + " is taking Damage!");
+            currentHealth -= damage;
+            if (currentHealth <= 0)
+            {
+                characterDown = true;
+                //Destroy(gameObject);
+                cameraController.gameObject.SetActive(false);
+                this.gameObject.SetActive(false);
+            }
         }
-    }
-    
-    public void CharacterChange() // Changes UI to active character when changing character
-    {
-        UpdateUIText();
-        gameManager.ChangeWeaponUIText();       
     }
 }
