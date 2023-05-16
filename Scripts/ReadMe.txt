@@ -8,7 +8,7 @@ effective/easier ways to approach the code.
 Tools that I use in this project are Unity, Visual Studio and gitHub desktop.
 
 Thanks for checking the repo! If you want to reach me, feel free to connect me
-in LinkedId: https://www.linkedin.com/in/hannes-sirviö/
+in LinkedId and throw me a message: https://www.linkedin.com/in/hannes-sirviö/
 
 Cheers!
 ---------
