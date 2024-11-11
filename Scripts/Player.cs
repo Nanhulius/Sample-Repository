@@ -1,124 +1,206 @@
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using TMPro;
-using UnityEngine.UIElements;
-using Unity.Collections;
-using Cinemachine;
 
-public class Player : MonoBehaviour, IDamageable
+public class Player : MonoBehaviour
 {
-    [SerializeField] public Camera mainCamera;
-    [SerializeField] public CameraController cameraController;
+    public GameManager gm;
+    private Camera mainCamera;
 
-    private GameManager gameManager;
-    private Weapon weapon;
-    private UnitSelector unitSelector;
+    public PlayerData playerData;
 
-    [SerializeField] private int maxHealth, currentHealth = 1;
-    [SerializeField] private float jumpHeight, moveSpeed;
-    [SerializeField] public float maxMoves, movesLeft; 
+    public ProjectileManager projectileManager;
+    private CargoController cargoController;   
+    public EngineController engineController;
+    public ShieldController shieldController;
+    public AntiMatterController antiMatterController;
+    public LaserController laserController;
+    public VacuumController vacuumController;
+    public UtilityController utilityController;
+    private Transform cachedTransform;
 
-    private TextMeshProUGUI movesText;
-    private bool moving = false;
-    private bool outOfMovesShown = false;
-    private bool damageable = true;
-    public bool characterDown = false;
-    private Rigidbody rb;
+    public delegate void InputAction();
+    public event InputAction OnPrimayFirePressed;
+    public event InputAction OnPrimayFireReleased;
+    public event InputAction OnUtilityPressed;
+    public event InputAction OnUtilityReleased;
+    
+    public SpriteRenderer spriteRenderer;
+
+    public GameObject vacuum;
+    public GameObject weapon;
+
+    public PolygonCollider2D playerCollider;
+
+    public Color alpha;
+    public bool playerIsDead = false;
+
+    private int enemyLayer;
+    private int beltLayer;
+    private int debrisLayer;
+    private int projectileLayer;
+
+    private HashSet<int> damageLayers;
+
+    [SerializeField] private bool immortality = false;
 
     private void Awake()
     {
-        InitializeCharacter();
+        InitializePlayer();
+    }
+
+    private void InitializePlayer()
+    {
+        gm = GameObject.FindWithTag("GameManager").GetComponent<GameManager>();
+        mainCamera = GameObject.FindWithTag("MainCamera").GetComponent<Camera>();
+        projectileManager = GetComponentInChildren<ProjectileManager>();
+        spriteRenderer = GetComponent<SpriteRenderer>();
+        alpha = spriteRenderer.GetComponent<SpriteRenderer>().color;
+        playerCollider = GetComponent<PolygonCollider2D>();
+        antiMatterController = GetComponentInChildren<AntiMatterController>();
+        
+        laserController = GetComponentInChildren<LaserController>();
+        shieldController = GetComponentInChildren<ShieldController>();
+        cargoController = GetComponentInChildren<CargoController>();
+        engineController = GetComponentInChildren<EngineController>();
+        
+        vacuumController = GetComponentInChildren<VacuumController>();
+        utilityController = GetComponent<UtilityController>();
+        cachedTransform = transform;
+
+        OnPrimayFirePressed += () => UseMainWeapon(true);
+        OnPrimayFireReleased += () => UseMainWeapon(false);
+        OnUtilityPressed += () => utilityController.UseActiveUtility(true);
+        OnUtilityReleased += () => utilityController.UseActiveUtility(false);
+
+        enemyLayer = LayerMask.NameToLayer("Enemy");
+        beltLayer = LayerMask.NameToLayer("BeltAsteroid");
+        debrisLayer = LayerMask.NameToLayer("SpaceDebris");
+        projectileLayer = LayerMask.NameToLayer("EnemyProjectile");
+        damageLayers = new HashSet<int> { beltLayer, debrisLayer, enemyLayer, projectileLayer };
+
+        GatherPlayerData();
+    }
+
+    private void GatherPlayerData()
+    {
+        if (playerData != null)
+        {
+            utilityController.activeUtility = playerData.startingUtility;
+        }
+
+        if (playerData.hasAntiMatterBlast)
+        {
+            antiMatterController.cooldown = playerData.antiMatterCooldown;
+            antiMatterController.damage = playerData.antiMatterDamage;
+            antiMatterController.speed = playerData.projectileSpeed;
+        }
+
+        if (playerData.hasCargo)
+        {
+            cargoController.currentCargoSlots = playerData.currentCargoSlots;
+            cargoController.maxCargoSlots = playerData.maxCargoSlots;
+        }
+
+        if (playerData.hasEngine)
+        {
+            engineController.acceleration = playerData.acceleration;
+            engineController.deceleration = playerData.deceleration;
+            engineController.speed = playerData.speed;
+            engineController.bwSpeed = playerData.backwardsSpeed;
+        }
+
+        if (playerData.hasLaser)
+        {
+            laserController.beamTime = playerData.beamTime;
+            laserController.cooldown = playerData.laserCooldown;
+            laserController.damage = playerData.laserDamage;
+            laserController.range = playerData.range;
+            if (playerData.hasDoubleLaserAtStart)
+                laserController.doubleLaser = true;
+            if (playerData.hasTripleLaserAtStart)
+                laserController.tripleLaser = true;
+        }
+
+        if (playerData.hasShield)
+        {
+            shieldController.shieldRadius = playerData.shieldRadius;
+            shieldController.shieldCooldownDuration = playerData.shieldCooldown;
+        }
+
+        if (playerData.hasVacuum)
+        {
+            vacuumController.pullForce = playerData.pullForce;
+            vacuumController.radius = playerData.vacuumRadius;
+        }
     }
 
     private void Update()
     {
-        if (!gameManager.enemyTurn) // If it's enemy turn player cannot move
-            if (this == gameManager.activeCharacter)
-                MoveCharacter();
-            else
-                return;
+        if (!playerIsDead && !utilityController.isChoosingUtility)
+            HandleInput();
     }
-    private void InitializeCharacter() // Sets active character at the start of the game
+
+    private void HandleInput()
     {
-        currentHealth = maxHealth;
-        movesLeft = maxMoves;
-        rb = GetComponent<Rigidbody>();
-        mainCamera = gameObject.GetComponentInChildren<Camera>();
-        cameraController = gameObject.GetComponentInChildren<CameraController>();
-        gameManager = GameObject.FindWithTag("GameManager").GetComponent<GameManager>();
-        weapon = gameObject.GetComponentInChildren<Weapon>();
-        unitSelector = GameObject.FindWithTag("GameManager").GetComponent<UnitSelector>();
-        unitSelector.selectedCharacterList.Add(this);
-        if (gameManager.activeCharacter == null)
+        if (Input.GetMouseButton(0))
+            OnPrimayFirePressed?.Invoke();
+        else if (Input.GetMouseButtonUp(0))
+            OnPrimayFireReleased?.Invoke();
+
+        if (Input.GetMouseButton(1))
+            OnUtilityPressed?.Invoke();
+        else if (Input.GetMouseButtonUp(1))
+            OnUtilityReleased?.Invoke();
+
+        for (int i = 0; i < gm.utilityManager.currentSlotCount; i++)
         {
-            gameManager.activeCharacter = this;
-            gameManager.activeCharacterWeapon = gameManager.activeCharacter.GetComponent<Weapon>();
-        }
-        else
-        {
-            cameraController.gameObject.SetActive(false);
+            if (Input.GetKeyDown(KeyCode.Alpha1 + i))
+            {
+                gm.utilityManager.SelectUtilityByIndex(i);
+                break;
+            }
         }
     }
 
-    private void MoveCharacter()  // Moves active character, if aiming is on movemenet speed is 1/3 of normal
+    private void UseMainWeapon(bool isPressed)
     {
-        if (movesLeft >= 0)
+        if (isPressed && antiMatterController.isAntiMatterReady)
         {
-            var dir = new Vector3(Input.GetAxis("Horizontal"), 0f, Input.GetAxis("Vertical"));
-            
-            if (!weapon.aimOn)
-                transform.Translate(dir * moveSpeed * Time.deltaTime);
-            else
-                transform.Translate(dir * (moveSpeed / 3) * Time.deltaTime);
+            Vector3 targetPosition = mainCamera.ScreenToWorldPoint(Input.mousePosition);
+            targetPosition.z = 0f;
 
-            if (rb.velocity.magnitude != 0)
-            {
-                moving = true;
-                movesLeft -= Time.deltaTime;                
-            }    
-            else
-                moving = false;
-
-            if (Input.GetKeyDown(KeyCode.Space)) // Jumping, currently decreases movesleft with spacebar + moving, maybe change for just moving?
-            {
-                rb.AddForce(new Vector3(0, jumpHeight), ForceMode.Impulse);
-                movesLeft--;
-                movesLeft -= Time.deltaTime;
-            }
-            gameManager.UpdateUIText();
+            projectileManager.FireAntiMatterBlast(utilityController.projectileSpawnPosition.position, targetPosition);
+            StartCoroutine(antiMatterController.AntiMatterCooldown());
         }
-        else
-        {
-            gameManager.announcerText.text = "Out of moves!";
-            if (!outOfMovesShown) // If moves are depleted show text
-            {
-                gameManager.EnableAnnouncerText();
-                outOfMovesShown = true;
-            }
-            else                  // If clicking any key while moves are depleted show text
-            {
-                if (Input.anyKey && !gameManager.CheckMouseOverUI())
-                    gameManager.EnableAnnouncerText();
-            }
-        }
-    } 
+    }
 
-    void IDamageable.TakeDamage(int damage)
+    private void OnCollisionEnter2D(Collision2D collision)
     {
-        if (!damageable)
+        if (damageLayers.Contains(collision.gameObject.layer))
+        {
+            if (!IsShieldActive())                           
+                 KillPlayer();
+        }
+    }
+
+    public void KillPlayer()
+    {
+        if (immortality)
             return;
-        else
-        {
-            Debug.Log(this.gameObject.name + " is taking Damage!");
-            currentHealth -= damage;
-            if (currentHealth <= 0)
-            {
-                characterDown = true;
-                //Destroy(gameObject);
-                cameraController.gameObject.SetActive(false);
-                this.gameObject.SetActive(false);
-            }
-        }
+
+        OnPrimayFirePressed -= () => UseMainWeapon(true);
+        OnPrimayFireReleased -= () => UseMainWeapon(false);
+        OnUtilityPressed -= () => utilityController.UseActiveUtility(true);
+        OnUtilityReleased -= () => utilityController.UseActiveUtility(false);
+
+        gm.OnPlayerDeath();
+
+        if (cargoController != null)
+            cargoController.ScatterCargo();
+    }
+
+    public bool IsShieldActive()
+    {
+        return shieldController != null && shieldController.IsShieldActive();
     }
 }
